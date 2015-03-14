@@ -1,7 +1,7 @@
 import os
 import uuid
 import psycopg2
-import psycopg2.extra
+import psycopg2.extras
 from flask import Flask, session
 from flask.ext.socketio import SocketIO, emit
 
@@ -80,9 +80,10 @@ def on_login(updict):
     else:
         query = "INSERT INTO users VALUES(DEFAULT, %s, %s)"
         cur.execute(query, (usn, pw,))
-        cur.commit()
+        cur.close()
+        conn.commit()
     #users[session['uuid']]={'username':message}
-    #updateRoster()
+    updateRoster()
 
 
     
