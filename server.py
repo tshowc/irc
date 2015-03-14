@@ -1,5 +1,7 @@
 import os
 import uuid
+import psycopg2
+import psycopg2.extra
 from flask import Flask, session
 from flask.ext.socketio import SocketIO, emit
 
@@ -10,6 +12,13 @@ socketio = SocketIO(app)
 
 messages = [{'text':'test', 'name':'testName'}]
 users = {}
+
+def connectToDB():
+  connectionString = 'dbname=ircdb user=postgres password=bball21 host=localhost'
+  try:
+    return psycopg2.connect(connectionString)
+  except:
+    print("Can't connect to database")
 
 def updateRoster():
     names = []
@@ -51,8 +60,27 @@ def on_identify(message):
 
 
 @socketio.on('login', namespace='/chat')
-def on_login(pw):
-    print 'login '  + pw
+def on_login(updict):
+    print 'login ' + updict['usn'] + updict['pw']
+    usn = updict['usn']
+    pw = updict['pw']
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT username FROM users WHERE username = %s"
+    cur.execute(query, (usn,))
+    results = cur.fetchall()
+    if len(results) != 0:
+        query = "SELECT username, password FROM users WHERE username = %s AND password = %s"
+        cur.execute(query, (usn, pw,))
+        results = cur.fetchall()
+        if len(results) == 0:
+            print "Wrong password"
+        else:
+            print "Logged in"
+    else:
+        query = "INSERT INTO users VALUES(DEFAULT, %s, %s)"
+        cur.execute(query, (usn, pw,))
+        cur.commit()
     #users[session['uuid']]={'username':message}
     #updateRoster()
 
