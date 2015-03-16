@@ -37,6 +37,8 @@ def test_connect():
     session['uuid']=uuid.uuid1()
     session['username']='starter name'
     print 'connected'
+    print session['uuid']
+    print session['username']
     
     users[session['uuid']]={'username':'New User'}
     updateRoster()
@@ -49,6 +51,15 @@ def test_connect():
 def new_message(message):
     #tmp = {'text':message, 'name':'testName'}
     tmp = {'text':message, 'name':users[session['uuid']]['username']}
+    
+    uuid = session['uuid']
+    
+#    conn = connectToDB()
+#    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+#    query = "INSERT INTO messages VALUES( , %s, %s)"
+#        cur.execute(query, (usn, pw,))
+#        cur.close()
+#        conn.commit()
     messages.append(tmp)
     emit('message', tmp, broadcast=True)
     
@@ -63,7 +74,10 @@ def on_identify(message):
 def on_login(updict):
     print 'login ' + updict['usn'] + updict['pw']
     usn = updict['usn']
+    session['username'] = usn
+    print session['username']
     pw = updict['pw']
+    uuid = session['uuid']
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     query = "SELECT username FROM users WHERE username = %s"
@@ -78,8 +92,8 @@ def on_login(updict):
         else:
             print "Logged in"
     else:
-        query = "INSERT INTO users VALUES(DEFAULT, %s, %s)"
-        cur.execute(query, (usn, pw,))
+        query = "INSERT INTO users VALUES(%s, %s, %s)"
+        cur.execute(query, (uuid, usn, pw,))
         cur.close()
         conn.commit()
     #users[session['uuid']]={'username':message}
