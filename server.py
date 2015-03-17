@@ -75,7 +75,7 @@ def new_results(searchTerm):
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     query = "SELECT * FROM messages WHERE message like %s"
-    cur.execute(query, ("%" + searchTerm + "%",)
+    cur.execute(query, ("%" + searchTerm + "%",))
     
     results = cur.fetchall()
     
