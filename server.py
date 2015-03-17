@@ -69,22 +69,20 @@ def new_message(message):
     emit('message', tmp, broadcast=True)
     
 @socketio.on('search', namespace='/chat')
-def new_results(searchTerm):
-    print "SEARCHING" + searchTerm
+def new_results(search):
+    print "SEARCHING" + search
     #tmp = {'text':message, 'name':'testName'}
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     query = "SELECT * FROM messages WHERE message like %s"
-    cur.execute(query, ("%" + searchTerm + "%",))
+    cur.execute(query, ("%" + search + "%",))
     
     results = cur.fetchall()
     
     for result in results:
         result = {'username' : result['username'], 'message' : result['message']}
         emit('search', result)
-    
-    
-   
+        
     
     
 @socketio.on('identify', namespace='/chat')

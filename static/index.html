@@ -62,7 +62,7 @@ if(showhide == "show"){
         $scope.results = [];
         $scope.name = '';
         $scope.text = '';
-        $scope.searchTerm = '';
+        $scope.searchHere = '';
         $scope.Logged = false;
 
         socket.on('connect', function () {
@@ -109,9 +109,9 @@ if(showhide == "show"){
         };
         
         $scope.search = function search() {
-          console.log('Searching for:', $scope.searchTerm);
-          socket.emit('search', $scope.searchTerm);
-          $scope.searchTerm = '';
+          console.log('Searching for:', $scope.searchHere);
+          socket.emit('search', $scope.searchHere);
+          $scope.searchHere = '';
           $scope.results = [];
         };
 
@@ -206,12 +206,12 @@ if(showhide == "show"){
             <form ng-submit="search()">
               <div class="span2" ><input type="text" class="input-block-level" readonly="readonly" placeholder="Search Bar"></div>
               <div class="input-append span7">
-                <input type="text" class="span6" ng-model="searchTerm" placeholder="Search Here">
-                <input type="submit" class="span1 btn btn-primary" value="Send" ng-disabled="!searchTerm">
+                <input type="text" class="span6" ng-model="searchHere" placeholder="Search Here">
+                <input type="submit" class="span1 btn btn-primary" value="Send" ng-disabled="!searchHere">
               </div>
             </form>
           </div>
-            <table class="table table-striped table-bordered2" align="center">
+            <table class="table table-striped table-bordered" align="center">
             <thead>
               <tr>
                 <th class="span2">Name</th>
