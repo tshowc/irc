@@ -14,7 +14,7 @@ messages = [{'text':'test', 'name':'testName'}]
 users = {}
 
 def connectToDB():
-  connectionString = 'dbname=ircdb user=postgres password=bball21 host=localhost'
+  connectionString = 'dbname=ircdb user=postgres password=post1234 host=localhost'
   try:
     return psycopg2.connect(connectionString)
   except:
@@ -43,32 +43,55 @@ def test_connect():
     users[session['uuid']]={'username':'New User'}
     updateRoster()
 
-
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT * FROM messages"
+    cur.execute(query)
+    
+    messages = cur.fetchall()
+    
     for message in messages:
+        message= {'name' : message['username'], 'text' : message['message']}
         emit('message', message)
 
 @socketio.on('message', namespace='/chat')
 def new_message(message):
     #tmp = {'text':message, 'name':'testName'}
     tmp = {'text':message, 'name':users[session['uuid']]['username']}
-    
-    uuid = session['uuid']
-    
-#    conn = connectToDB()
-#    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-#    query = "INSERT INTO messages VALUES( , %s, %s)"
-#        cur.execute(query, (usn, pw,))
-#        cur.close()
-#        conn.commit()
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "INSERT INTO messages VALUES( %s, %s)"
+    cur.execute(query, (session['username'], message,))
+    cur.close()
+    conn.commit()
+    print message
     messages.append(tmp)
     emit('message', tmp, broadcast=True)
+    
+@socketio.on('search', namespace='/chat')
+def new_results(searchTerm):
+    print "SEARCHING" + searchTerm
+    #tmp = {'text':message, 'name':'testName'}
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT * FROM messages WHERE message like %s"
+    cur.execute(query, ("%" + searchTerm + "%",))
+    
+    results = cur.fetchall()
+    
+    for result in results:
+        result = {'username' : result['username'], 'message' : result['message']}
+        emit('search', result)
+    
+    
+   
+    
     
 @socketio.on('identify', namespace='/chat')
 def on_identify(message):
     print 'identify' + message
     users[session['uuid']]={'username':message}
     updateRoster()
-
 
 @socketio.on('login', namespace='/chat')
 def on_login(updict):
@@ -77,7 +100,6 @@ def on_login(updict):
     session['username'] = usn
     print session['username']
     pw = updict['pw']
-    uuid = session['uuid']
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     query = "SELECT username FROM users WHERE username = %s"
@@ -89,13 +111,22 @@ def on_login(updict):
         results = cur.fetchall()
         if len(results) == 0:
             print "Wrong password"
+            Logged = False
+            print Logged
+            emit('processLogin', Logged)
         else:
             print "Logged in"
+            Logged = True
+            print Logged
+            emit('processLogin', Logged)
     else:
-        query = "INSERT INTO users VALUES(%s, %s, %s)"
-        cur.execute(query, (uuid, usn, pw,))
+        query = "INSERT INTO users VALUES(DEFAULT, %s, %s)"
+        cur.execute(query, (usn, pw,))
         cur.close()
         conn.commit()
+        Logged = True
+        print Logged
+        emit('processLogin', Logged)
     #users[session['uuid']]={'username':message}
     updateRoster()
 
