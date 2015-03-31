@@ -3,7 +3,7 @@ import uuid
 import psycopg2
 import psycopg2.extras
 from flask import Flask, session
-from flask.ext.socketio import SocketIO, emit
+from flask.ext.socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__, static_url_path='')
 app.config['SECRET_KEY'] = 'secret!'
@@ -12,9 +12,10 @@ socketio = SocketIO(app)
 
 messages = [{'text':'test', 'name':'testName'}]
 users = {}
+rooms = []
 
 def connectToDB():
-  connectionString = 'dbname=ircdb user=postgres password=post1234 host=localhost'
+  connectionString = 'dbname=ircdb2 user=postgres password=post1234 host=localhost'
   try:
     return psycopg2.connect(connectionString)
   except:
@@ -31,7 +32,35 @@ def updateRoster():
     print 'broadcasting names'
     emit('roster', names, broadcast=True)
     
+def updateRooms():
+    room_list = []
+    print "UPDATING ROOMS" 
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT * FROM rooms"
+    cur.execute(query)
 
+    rooms = cur.fetchall()
+
+    for room in rooms:
+         room_list.append({'room_name' : room['room_name'], 'room_id' : room['room_id']})
+    emit('room', room_list, broadcast=True)
+    
+    
+def updateMessages():
+    
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "select users.username, messages.message from users JOIN junction ON users.user_id = junction.user_id JOIN rooms ON rooms.room_id = junction.room_id JOIN messages ON messages.message_id = junction.message_id WHERE rooms.room_name = %s;"
+    cur.execute(query, (session['room'],))
+    
+    messages = cur.fetchall()
+     
+    for message in messages:
+        message= {'name' : message['username'], 'text' : message['message']}
+        emit('message', message)
+        
+    
 @socketio.on('connect', namespace='/chat')
 def test_connect():
     session['uuid']=uuid.uuid1()
@@ -42,17 +71,17 @@ def test_connect():
     
     users[session['uuid']]={'username':'New User'}
     updateRoster()
-
-    conn = connectToDB()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    query = "SELECT * FROM messages"
-    cur.execute(query)
     
-    messages = cur.fetchall()
+#    conn = connectToDB()
+#    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+#    query = "SELECT * FROM messages"
+#    cur.execute(query)
     
-    for message in messages:
-        message= {'name' : message['username'], 'text' : message['message']}
-        emit('message', message)
+#    messages = cur.fetchall()
+    
+#    for message in messages:
+#        message= {'name' : message['username'], 'text' : message['message']}
+#        emit('message', message)
 
 @socketio.on('message', namespace='/chat')
 def new_message(message):
@@ -60,8 +89,13 @@ def new_message(message):
     tmp = {'text':message, 'name':users[session['uuid']]['username']}
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    query = "INSERT INTO messages VALUES( %s, %s)"
-    cur.execute(query, (session['username'], message,))
+    query = "INSERT INTO messages VALUES(DEFAULT, %s)"
+    cur.execute(query, (message,))
+    cur.close()
+    conn.commit()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query2 = "INSERT INTO junction VALUES((SELECT message_id FROM messages where message = %s), (SELECT user_id FROM users where username = %s), %s)"
+    cur.execute(query2, (message, session['username'], session['room_id'],))
     cur.close()
     conn.commit()
     print message
@@ -70,12 +104,12 @@ def new_message(message):
     
 @socketio.on('search', namespace='/chat')
 def new_results(search):
-    print "SEARCHING" + search
+    print "SEARCHING " + search
     #tmp = {'text':message, 'name':'testName'}
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-    query = "SELECT * FROM messages WHERE message like %s"
-    cur.execute(query, ("%" + search + "%",))
+    query = "select users.username, messages.message from users JOIN junction ON users.user_id = junction.user_id JOIN rooms ON rooms.room_id = junction.room_id JOIN messages ON messages.message_id = junction.message_id WHERE rooms.room_name = %s AND messages.message like %s"
+    cur.execute(query, (session['room'], "%" + search + "%",))
     
     results = cur.fetchall()
     
@@ -83,7 +117,35 @@ def new_results(search):
         result = {'username' : result['username'], 'message' : result['message']}
         emit('search', result)
         
+@socketio.on('newroom', namespace='/chat')
+def create_room(roomname):
+#    INSERT NEW ROOM INTO DATABASE
+     print "CREATING NEW ROOM CALLED: " + roomname
+     conn = connectToDB()
+     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+     query = "INSERT INTO rooms VALUES(DEFAULT, %s)"
+     cur.execute(query, (roomname,))
+     cur.close()
+     conn.commit()
+     updateRooms()
+        
     
+@socketio.on('change', namespace='/chat')
+def change_room(rm):
+    session['room'] = rm
+    print 'CHANGING ROOM: ' + session['room']
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "SELECT room_id FROM rooms WHERE room_name = %s"
+    cur.execute(query, (rm,))
+    
+    change = cur.fetchone();
+    
+    session['room_id'] = change['room_id']
+    
+    print session['room_id']
+ 
+    updateMessages()
     
 @socketio.on('identify', namespace='/chat')
 def on_identify(message):
@@ -98,6 +160,8 @@ def on_login(updict):
     session['username'] = usn
     print session['username']
     pw = updict['pw']
+    session['room'] = 'General'; #Room start
+    session['room_id'] = 1;
     conn = connectToDB()
     cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     query = "SELECT username FROM users WHERE username = %s"
@@ -127,6 +191,8 @@ def on_login(updict):
         emit('processLogin', Logged)
     #users[session['uuid']]={'username':message}
     updateRoster()
+    updateRooms()
+    updateMessages() 
 
 
     

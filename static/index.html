@@ -33,6 +33,9 @@ table{
  overflow-y: auto;
 }
 
+.current_rm{
+   font-weight:bold;
+}
 
 
 </style>
@@ -59,6 +62,7 @@ if(showhide == "show"){
 
         $scope.messages = [];
         $scope.roster = [];
+        $scope.rooms= [];
         $scope.results = [];
         $scope.name = '';
         $scope.text = '';
@@ -100,12 +104,28 @@ if(showhide == "show"){
           console.log("Roster update:" +JSON.stringify(names));
           $scope.roster = names;
           $scope.$apply();
+        });       
+        
+        socket.on('room', function(rm) {
+          $scope.rooms = rm;
+          $scope.$apply();
         });
 
+        $scope.changeRoom = function changeRoom(rm) {
+          $scope.messages = [];
+          socket.emit('change', rm);
+        };
+        
         $scope.send = function send() {
           console.log('Sending message:', $scope.text);
           socket.emit('message', $scope.text);
           $scope.text = '';
+        };
+        
+        $scope.createRoom = function createRoom() {
+          //CREATE ROOM AND SEND BACK ROOM NAME
+          socket.emit('newroom', $scope.new_room_name);
+          $scope.new_room_name = '';
         };
         
         $scope.search = function search() {
@@ -174,6 +194,13 @@ if(showhide == "show"){
           <ul class="nav nav-list well">
             <li class="nav-header">Local Users</li>
             <li ng-repeat="user in roster" ng-bind="user">
+            </li>
+          </ul>
+          <ul class="nav nav-list well">
+            <li class="nav-header">Chat Rooms</li>
+            <li><button ng-repeat="rm in rooms" ng-click="changeRoom(rm.room_name)">{{rm.room_name}}</button></li>
+            <li><form ng-submit="createRoom()"><input ng-model='new_room_name' type='text' style='width:100%'/>
+            <input type="submit" class="span2 btn btn-primary" value="Create Room" ng-disabled="!new_room_name"></form></li>
             </li>
           </ul>
           
