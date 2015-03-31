@@ -60,6 +60,23 @@ def updateMessages():
         message= {'name' : message['username'], 'text' : message['message']}
         emit('message', message)
         
+def checkSubscribe():
+    
+    has_access = False
+    conn = connectToDB()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = "select subscribe.user_id from subscribe where subscribe.room_id = %s AND user_id = %s"
+    cur.execute(query, (session['room_id'], session['user_id'],))
+    result = cur.fetchall()
+    if len(result) == 0:
+        has_access = False
+    else:
+        has_access = True
+        updateMessages()
+    
+    emit('is_subscribed', has_access)
+
+        
     
 @socketio.on('connect', namespace='/chat')
 def test_connect():
@@ -144,9 +161,24 @@ def change_room(rm):
     session['room_id'] = change['room_id']
     
     print session['room_id']
- 
-    updateMessages()
     
+    checkSubscribe()
+    
+@socketio.on('subscribed', namespace='/chat')
+def subscribe(sub):
+    if sub:
+        conn = connectToDB()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "INSERT INTO subscribe VALUES(%s, %s)"
+        cur.execute(query, (session['user_id'], session['room_id'],))
+        cur.close()
+        conn.commit()
+        print "SUBSCRIBED TO ROOM ID: "
+        print session['room_id']
+        checkSubscribe()
+    else: 
+        print "NOT SUBSCRIBED"
+        
 @socketio.on('identify', namespace='/chat')
 def on_identify(message):
     print 'identify' + message
@@ -168,7 +200,7 @@ def on_login(updict):
     cur.execute(query, (usn,))
     results = cur.fetchall()
     if len(results) != 0:
-        query = "SELECT username, password FROM users WHERE username = %s AND password = %s"
+        query = "SELECT username, password, user_id FROM users WHERE username = %s AND password = %s"
         cur.execute(query, (usn, pw,))
         results = cur.fetchall()
         if len(results) == 0:
@@ -179,6 +211,12 @@ def on_login(updict):
         else:
             print "Logged in"
             Logged = True
+            session['user_id'] = results[0]['user_id'] #grabs user_id
+            cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            query = "INSERT INTO subscribe VALUES(%s, 1)"
+            cur.execute(query, (session['user_id'],))
+            cur.close()
+            conn.commit()
             print Logged
             emit('processLogin', Logged)
     else:
@@ -186,13 +224,23 @@ def on_login(updict):
         cur.execute(query, (usn, pw,))
         cur.close()
         conn.commit()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "SELECT user_id FROM users WHERE username = %s"
+        cur.execute(query, (usn,))
+        new_user = cur.fetchone()
         Logged = True
+        session['user_id'] = new_user['user_id'] #grabs user_id
+        cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        query = "INSERT INTO subscribe VALUES(%s, 1)"
+        cur.execute(query, (session['user_id'],))
+        cur.close()
+        conn.commit()
         print Logged
         emit('processLogin', Logged)
     #users[session['uuid']]={'username':message}
     updateRoster()
     updateRooms()
-    updateMessages() 
+    updateMessages()
 
 
     

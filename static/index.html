@@ -54,7 +54,12 @@ if(showhide == "show"){
     document.getElementById('background').style.visibility="hidden"; 
 }}
 
-
+function msg_search(showhide){
+if(showhide == "show"){
+    document.getElementById('msg_search').style.visibility="visible";
+}else if(showhide == "hide"){
+    document.getElementById('msg_search').style.visibility="hidden"; 
+}}
       function ChatController($scope) {
         var socket = io.connect('https://' + document.domain + ':' + location.port + '/chat');
 
@@ -68,6 +73,8 @@ if(showhide == "show"){
         $scope.text = '';
         $scope.searchHere = '';
         $scope.Logged = false;
+        $scope.cRoom = '';
+        $scope.currentRM = '';
 
         socket.on('connect', function () {
           console.log('connected');
@@ -111,8 +118,28 @@ if(showhide == "show"){
           $scope.$apply();
         });
 
+        
+        socket.on('is_subscribed', function (is_subscribed) {
+          var checkWindow = false;
+          if (is_subscribed){
+            // show leave button
+            // hide join room button
+            // show all message related stuf
+          }
+          else{
+              checkWindow = confirm('You do not have access to this room. Would you like to subscribe?');
+              alert('Connecting you to new room.');
+          }
+          socket.emit('subscribed', checkWindow);
+          //$scope.$apply();
+        }); 
+        
         $scope.changeRoom = function changeRoom(rm) {
           $scope.messages = [];
+          $scope.cRoom = rm;
+          alert("Welcome to " + rm + "!");
+          $scope.currentRM = "You are currently in room name: " + $scope.cRoom 
+          $scope.$apply();
           socket.emit('change', rm);
         };
         
@@ -186,7 +213,7 @@ if(showhide == "show"){
         </div>
       </div>
       <div class="page-header">
-        <h1>Chat Room</h1>
+        <h1>Hella Awesome Chat Room</h1>
       </div>
   <div id="background">
       <div class="row">
@@ -205,7 +232,8 @@ if(showhide == "show"){
           </ul>
           
         </div>
-        <div class="span9">
+        <div class="span9" id = "msg_search">
+          <marquee bgcolor="#CCFFFF" ng-model='currentRM'> {{currentRM}} </marquee>
           <table class="table table-striped table-bordered">
             <thead>
               <tr>
